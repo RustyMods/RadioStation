@@ -7,7 +7,6 @@ using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
 using JetBrains.Annotations;
-using PieceManager;
 using RadioStation.RadioStation;
 using ServerSync;
 using UnityEngine;
@@ -18,11 +17,11 @@ namespace RadioStation
     public class RadioStationPlugin : BaseUnityPlugin
     {
         internal const string ModName = "RadioStation";
-        internal const string ModVersion = "1.0.0";
+        internal const string ModVersion = "1.0.1";
         internal const string Author = "RustyMods";
         private const string ModGUID = Author + "." + ModName;
-        private static string ConfigFileName = ModGUID + ".cfg";
-        private static string ConfigFileFullPath = Paths.ConfigPath + Path.DirectorySeparatorChar + ConfigFileName;
+        private static readonly string ConfigFileName = ModGUID + ".cfg";
+        private static readonly string ConfigFileFullPath = Paths.ConfigPath + Path.DirectorySeparatorChar + ConfigFileName;
         internal static string ConnectionError = "";
         private readonly Harmony _harmony = new(ModGUID);
 
@@ -105,6 +104,7 @@ namespace RadioStation
         private static ConfigEntry<Toggle> _serverConfigLocked = null!;
         public static ConfigEntry<Toggle> _FilterAudio = null!;
         public static ConfigEntry<int> _FadeDistance = null!;
+        public static ConfigEntry<Toggle> _PlayOnAwake = null!;
 
         private void InitConfigs()
         {
@@ -118,6 +118,9 @@ namespace RadioStation
             _FadeDistance = config("2 - Settings", "Fade Distance", 10,
                 new ConfigDescription("Set the max distance radio station can be heard",
                     new AcceptableValueRange<int>(1, 30)));
+
+            _PlayOnAwake = config("2 - Settings", "Play On Awake", Toggle.Off,
+                "If on, the radio will play when loaded into scene");
 
         }
         #region ConfigMethods

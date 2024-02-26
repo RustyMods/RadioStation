@@ -1,4 +1,5 @@
-﻿using BepInEx;
+﻿using System;
+using BepInEx;
 using RadioStation.Managers;
 using UnityEngine;
 
@@ -8,6 +9,7 @@ public class Radio : MonoBehaviour, Interactable, Hoverable
 {
     public string m_name = "$piece_radiostation";
     public static readonly int hash = "RadioHash".GetStableHashCode();
+    public static readonly int loop = "RadioLoop".GetStableHashCode();
     
     public AudioSource _audioSource = null!;
     public ZNetView _znv = null!;
@@ -18,10 +20,33 @@ public class Radio : MonoBehaviour, Interactable, Hoverable
         _audioSource = GetComponent<AudioSource>();
         if (!_znv.IsValid()) return;
         _znv.Register<string>(nameof(RPC_SetAudioClip),RPC_SetAudioClip);
+        _znv.Register<bool>(nameof(RPC_SetLoop),RPC_SetLoop);
+    }
+
+    private void Start()
+    {
+        if (!_znv.IsValid()) return;
+        if (RadioStationPlugin._PlayOnAwake.Value is RadioStationPlugin.Toggle.Off) return;
+        string audioName = _znv.GetZDO().GetString(hash);
+        if (!audioName.IsNullOrWhiteSpace())
+        {
+            if (_audioSource.clip == null)
+            {
+                AudioManager.AudioClips.TryGetValue(audioName, out AudioClip audioClip);
+                if (!audioClip) return;
+                _audioSource.clip = audioClip;
+                _audioSource.Play();
+            }
+            else
+            {
+                _audioSource.Play();
+            }
+        }
     }
 
     private void Update()
     {
+        CheckLoopSetting();
         if (!_audioSource.isPlaying) return;
         ControlVolume();
         CheckAudioChange();
@@ -52,6 +77,20 @@ public class Radio : MonoBehaviour, Interactable, Hoverable
         _audioSource.Stop();
         _audioSource.clip = audioClip;
         _audioSource.Play();
+    }
+
+    private void CheckLoopSetting()
+    {
+        if (!_znv.IsValid()) return;
+        bool flag = _znv.GetZDO().GetBool(loop);
+        if (_audioSource.loop == flag) return;
+        _audioSource.loop = flag;
+    }
+
+    private void RPC_SetLoop(long sender, bool value)
+    {
+        if (!_znv.IsValid() || !_znv.IsOwner()) return;
+        _znv.GetZDO().Set(loop, value);
     }
 
     private void RPC_SetAudioClip(long sender, string value)
@@ -112,9 +151,11 @@ public class Radio : MonoBehaviour, Interactable, Hoverable
         {
             return output;
         }
+        
+        string isLooping = _znv.GetZDO().GetBool(loop) ? "Looping: <color=yellow>On</color>" : "Looping: <color=yellow>Off</color>";
         string audioName = _znv.GetZDO().GetString(hash);
         if (audioName.IsNullOrWhiteSpace()) return output;
-        return audioName + "\n" + output;
+        return audioName + "\n" + isLooping + "\n" + output;
     }
 
     public string GetHoverName() => Localization.instance.Localize(m_name);

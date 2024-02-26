@@ -11,6 +11,8 @@ public static class UI
 {
     private static GameObject GUI = null!;
     private static Transform Content = null!;
+    private static ZNetView? CurrentRadioView;
+    private static TextMeshProUGUI LoopText = null!;
 
     [HarmonyPatch(typeof(InventoryGui), nameof(InventoryGui.Awake))]
     private static class LoadRadioUI
@@ -36,7 +38,22 @@ public static class UI
             }
 
             LoadAssets.GUI_Item.AddComponent<ButtonSfx>().m_sfxPrefab = VanillaButtonSFX.m_sfxPrefab;
+
+            Transform PartLoopButton = Utils.FindChild(GUI.transform, "$part_LoopButton");
+            PartLoopButton.gameObject.AddComponent<ButtonSfx>().m_sfxPrefab = VanillaButtonSFX.m_sfxPrefab;
+            LoopText = PartLoopButton.Find("Text").GetComponent<TextMeshProUGUI>();
+            if (!PartLoopButton.TryGetComponent(out Button LoopButton)) return;
+            LoopButton.onClick.AddListener(ToggleLoop);
         }
+    }
+
+    private static void ToggleLoop()
+    {
+        if (CurrentRadioView == null) return;
+        if (!CurrentRadioView.IsValid()) return;
+        bool flag = CurrentRadioView.GetZDO().GetBool(Radio.loop);
+        CurrentRadioView.GetZDO().Set(Radio.loop, !flag);
+        LoopText.text = !flag ? "Loop: <color=green>On</color>" : "Loop: <color=red>Off</color>";
     }
 
     public static void ShowUI(ZNetView znv)
@@ -46,35 +63,34 @@ public static class UI
         GUI.SetActive(true);
         DestroyRadioItems();
         AddRadioItems(znv);
+        CurrentRadioView = znv;
+        LoopText.text = znv.GetZDO().GetBool(Radio.loop) ? "Loop: <color=green>On</color>" : "Loop: <color=red>Off</color>";
     }
 
     private static void AddRadioItems(ZNetView znv)
     {
         foreach (KeyValuePair<string, AudioClip> item in AudioManager.CustomAudio)
         {
-            GameObject entry = Object.Instantiate(LoadAssets.GUI_Item, Content);
-            if (!entry.transform.Find("$part_text").TryGetComponent(out TextMeshProUGUI component)) continue;
-            component.text = item.Key;
-            if (!entry.TryGetComponent(out Button buttonComponent)) return;
-            buttonComponent.onClick.AddListener(() =>
-            {
-                if (!znv.IsValid()) return;
-                znv.GetZDO().Set(Radio.hash, item.Key);
-            });
+            CreateAudioItem(item, znv);
         }
         foreach (KeyValuePair<string, AudioClip> item in AudioManager.AudioClips)
         {
             if (!AudioManager.IsUsefulAudio(item.Key)) continue;
-            GameObject entry = Object.Instantiate(LoadAssets.GUI_Item, Content);
-            if (!entry.transform.Find("$part_text").TryGetComponent(out TextMeshProUGUI component)) continue;
-            component.text = item.Key;
-            if (!entry.TryGetComponent(out Button buttonComponent)) return;
-            buttonComponent.onClick.AddListener(() =>
-            {
-                if (!znv.IsValid()) return;
-                znv.GetZDO().Set(Radio.hash, item.Key);
-            });
+            CreateAudioItem(item, znv);
         }
+    }
+
+    private static void CreateAudioItem(KeyValuePair<string, AudioClip> item, ZNetView znv)
+    {
+        GameObject entry = Object.Instantiate(LoadAssets.GUI_Item, Content);
+        if (!entry.transform.Find("$part_text").TryGetComponent(out TextMeshProUGUI component)) return;
+        component.text = item.Key;
+        if (!entry.TryGetComponent(out Button buttonComponent)) return;
+        buttonComponent.onClick.AddListener(() =>
+        {
+            if (!znv.IsValid()) return;
+            znv.GetZDO().Set(Radio.hash, item.Key);
+        });
     }
 
     private static void DestroyRadioItems()

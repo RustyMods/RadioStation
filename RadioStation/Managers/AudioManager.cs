@@ -148,8 +148,7 @@ public static class AudioManager
         {
         }
 
-        if (webRequest.result == UnityWebRequest.Result.ConnectionError ||
-            webRequest.result == UnityWebRequest.Result.ProtocolError)
+        if (webRequest.result == UnityWebRequest.Result.ConnectionError || webRequest.result == UnityWebRequest.Result.ProtocolError)
         {
             RadioStationPlugin.RadioStationLogger.LogDebug("Failed to load audio file: " + webRequest.error);
         }
