@@ -17,7 +17,7 @@ namespace RadioStation
     public class RadioStationPlugin : BaseUnityPlugin
     {
         internal const string ModName = "RadioStation";
-        internal const string ModVersion = "1.0.1";
+        internal const string ModVersion = "1.0.3";
         internal const string Author = "RustyMods";
         private const string ModGUID = Author + "." + ModName;
         private static readonly string ConfigFileName = ModGUID + ".cfg";
@@ -105,6 +105,7 @@ namespace RadioStation
         public static ConfigEntry<Toggle> _FilterAudio = null!;
         public static ConfigEntry<int> _FadeDistance = null!;
         public static ConfigEntry<Toggle> _PlayOnAwake = null!;
+        public static ConfigEntry<float> _MaxVolume = null!;
 
         private void InitConfigs()
         {
@@ -121,6 +122,9 @@ namespace RadioStation
 
             _PlayOnAwake = config("2 - Settings", "Play On Awake", Toggle.Off,
                 "If on, the radio will play when loaded into scene");
+
+            _MaxVolume = config("2 - Settings", "Max Volume", 1f,
+                new ConfigDescription("Set the max volume of the radio", new AcceptableValueRange<float>(0f, 1f)));
 
         }
         #region ConfigMethods
