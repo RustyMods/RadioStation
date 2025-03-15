@@ -1,2 +1,4 @@
-# Ready to use english translation file for the plugin
-# (for more information on LocalizationManager, see the LocalizationManager documentation https://github.com/blaxxun-boop/LocalizationManager#example-project).
+item: ''
+text_queue: 'Queue'
+text_playlist: 'Playlist'
+text_search: 'Search...'

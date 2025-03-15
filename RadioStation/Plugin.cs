@@ -1,13 +1,14 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
 using System.Linq;
 using System.Reflection;
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
-using JetBrains.Annotations;
+using LocalizationManager;
+using PieceManager;
 using RadioStation.RadioStation;
+using RadioStation.UI;
 using ServerSync;
 using UnityEngine;
 
@@ -17,36 +18,61 @@ namespace RadioStation
     public class RadioStationPlugin : BaseUnityPlugin
     {
         internal const string ModName = "RadioStation";
-        internal const string ModVersion = "1.0.3";
+        internal const string ModVersion = "1.0.4";
         internal const string Author = "RustyMods";
         private const string ModGUID = Author + "." + ModName;
-        private static readonly string ConfigFileName = ModGUID + ".cfg";
+        private const string ConfigFileName = ModGUID + ".cfg";
         private static readonly string ConfigFileFullPath = Paths.ConfigPath + Path.DirectorySeparatorChar + ConfigFileName;
         internal static string ConnectionError = "";
         private readonly Harmony _harmony = new(ModGUID);
-
-        public static readonly ManualLogSource RadioStationLogger =
-            BepInEx.Logging.Logger.CreateLogSource(ModName);
-
-        private static readonly ConfigSync ConfigSync = new(ModGUID)
-            { DisplayName = ModName, CurrentVersion = ModVersion, MinimumRequiredVersion = ModVersion };
-
-        public enum Toggle
-        {
-            On = 1,
-            Off = 0
-        }
+        public static readonly ManualLogSource RadioStationLogger = BepInEx.Logging.Logger.CreateLogSource(ModName);
+        private static readonly ConfigSync ConfigSync = new(ModGUID) { DisplayName = ModName, CurrentVersion = ModVersion, MinimumRequiredVersion = ModVersion };
+        public enum Toggle { On = 1, Off = 0 }
 
         public static AssetBundle _assets = null!;
+        
+        private static ConfigEntry<Toggle> _serverConfigLocked = null!;
+        public static ConfigEntry<Toggle> _FilterAudio = null!;
+        public static ConfigEntry<int> _FadeDistance = null!;
+        public static ConfigEntry<Toggle> _PlayOnAwake = null!;
+        public static ConfigEntry<float> _MaxVolume = null!;
+        public static ConfigEntry<FontManager.FontOptions> _font = null!;
+        public static ConfigEntry<Vector2> _position = null!;
+        public static ConfigEntry<Toggle> _onlyCustoms = null!;
+
+        private void InitConfigs()
+        {
+            _serverConfigLocked = config("1 - General", "Lock Configuration", Toggle.On,
+                "If on, the configuration is locked and can be changed by server admins only.");
+            _ = ConfigSync.AddLockingConfigEntry(_serverConfigLocked);
+
+            _FilterAudio = config("2 - Settings", "Filter Audio", Toggle.On, "If on, plugin will filter audio list", false);
+            _FadeDistance = config("2 - Settings", "Fade Distance", 10, "Set the max distance radio station can be heard", false);
+            _PlayOnAwake = config("2 - Settings", "Play On Awake", Toggle.Off, "If on, the radio will play when loaded into scene");
+            _MaxVolume = config("2 - Settings", "Max Volume", 1f, new ConfigDescription("Set the max volume of the radio", new AcceptableValueRange<float>(0f, 1f)));
+            _font = config("2 - Settings", "Font", FontManager.FontOptions.AveriaSerifLibre, "Set font", false);
+            _font.SettingChanged += FontManager.OnFontChange;
+            _position = config("2 - Settings", "Panel Position", new Vector2(960f, 620f), "Set position of panel");
+            _onlyCustoms = config("2 - Settings", "Only Customs", Toggle.Off,
+                "If on, radio only displays custom audio");
+        }
 
         public void Awake()
         {
-            //Localizer.Load(); // Use this to initialize the LocalizationManager (for more information on LocalizationManager, see the LocalizationManager documentation https://github.com/blaxxun-boop/LocalizationManager#example-project).
-
+            Localizer.Load();
             InitConfigs();
             _assets = GetAssetBundle("radiobundle");
-            LoadAssets.InitGUI();
-            LoadAssets.InitPieces();
+
+            BuildPiece RadioStation = new("radiobundle", "RadioStation");
+            RadioStation.Name.English("Radio"); 
+            RadioStation.Description.English("A slice of modernity");
+            RadioStation.RequiredItems.Add("FineWood", 20, true); 
+            RadioStation.RequiredItems.Add("SurtlingCore", 2, true);
+            RadioStation.RequiredItems.Add("BronzeNails", 20, true);
+            RadioStation.Category.Set(BuildPieceCategory.Furniture);
+            RadioStation.Crafting.Set(CraftingTable.Workbench);
+            Radio component = RadioStation.Prefab.AddComponent<Radio>();
+            component.m_name = RadioStation.Name.Key;
             
             Assembly assembly = Assembly.GetExecutingAssembly();
             _harmony.PatchAll(assembly);
@@ -55,10 +81,8 @@ namespace RadioStation
 
         public void Update()
         {
-            UI.UpdateUI();
+            RadioUI.UpdateUI();
         }
-
-        #region Utils
         
         private static AssetBundle GetAssetBundle(string fileName)
         {
@@ -97,37 +121,6 @@ namespace RadioStation
                 RadioStationLogger.LogError("Please check your config entries for spelling and format!");
             }
         }
-
-        #endregion
-        #region ConfigOptions
-        
-        private static ConfigEntry<Toggle> _serverConfigLocked = null!;
-        public static ConfigEntry<Toggle> _FilterAudio = null!;
-        public static ConfigEntry<int> _FadeDistance = null!;
-        public static ConfigEntry<Toggle> _PlayOnAwake = null!;
-        public static ConfigEntry<float> _MaxVolume = null!;
-
-        private void InitConfigs()
-        {
-            _serverConfigLocked = config("1 - General", "Lock Configuration", Toggle.On,
-                "If on, the configuration is locked and can be changed by server admins only.");
-            _ = ConfigSync.AddLockingConfigEntry(_serverConfigLocked);
-
-            _FilterAudio = config("2 - Settings", "Filter Audio", Toggle.On, "If on, plugin will filter audio list",
-                false);
-
-            _FadeDistance = config("2 - Settings", "Fade Distance", 10,
-                new ConfigDescription("Set the max distance radio station can be heard",
-                    new AcceptableValueRange<int>(1, 30)));
-
-            _PlayOnAwake = config("2 - Settings", "Play On Awake", Toggle.Off,
-                "If on, the radio will play when loaded into scene");
-
-            _MaxVolume = config("2 - Settings", "Max Volume", 1f,
-                new ConfigDescription("Set the max volume of the radio", new AcceptableValueRange<float>(0f, 1f)));
-
-        }
-        #region ConfigMethods
         private ConfigEntry<T> config<T>(string group, string name, T value, ConfigDescription description,
             bool synchronizedSetting = true)
         {
@@ -150,28 +143,5 @@ namespace RadioStation
         {
             return config(group, name, value, new ConfigDescription(description), synchronizedSetting);
         }
-
-        private class ConfigurationManagerAttributes
-        {
-            [UsedImplicitly] public int? Order = null!;
-            [UsedImplicitly] public bool? Browsable = null!;
-            [UsedImplicitly] public string? Category = null!;
-            [UsedImplicitly] public Action<ConfigEntryBase>? CustomDrawer = null!;
-        }
-
-        class AcceptableShortcuts : AcceptableValueBase
-        {
-            public AcceptableShortcuts() : base(typeof(KeyboardShortcut))
-            {
-            }
-
-            public override object Clamp(object value) => value;
-            public override bool IsValid(object value) => true;
-
-            public override string ToDescriptionString() =>
-                "# Acceptable values: " + string.Join(", ", UnityInput.Current.SupportedKeyCodes);
-        }
-        #endregion
-        #endregion
     }
 }

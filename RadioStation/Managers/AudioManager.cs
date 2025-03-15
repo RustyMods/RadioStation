@@ -88,9 +88,8 @@ public static class AudioManager
 
     private static List<string> GetAudioClipNames()
     {
-        List<AudioClip> resources = Resources.FindObjectsOfTypeAll<AudioClip>().ToList();
         List<string> AudioClipNames = new();
-        foreach (AudioClip clip in resources)
+        foreach (AudioClip clip in Resources.FindObjectsOfTypeAll<AudioClip>())
         {
             AudioClipNames.Add(clip.name);
             AudioClips[clip.name] = clip;
